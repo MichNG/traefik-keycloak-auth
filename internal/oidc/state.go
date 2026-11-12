@@ -1,0 +1,77 @@
+package oidc
+
+import (
+	"encoding/base64"
+	"encoding/json"
+
+	"github.com/MichNG/traefik-keycloak-auth/internal/utils"
+)
+
+type OidcState struct {
+	Action      string `json:"action"`
+	RedirectUrl string `json:"redirect_url"`
+
+	// CodeVerifier is the PKCE code_verifier for this login flow.
+	// Stored plaintext here; EncodeState encrypts the whole state blob.
+	// Carried in state so parallel login redirects cannot overwrite each other via a shared cookie.
+	CodeVerifier string `json:"cv,omitempty"`
+
+	// BrowserBinding ties this state to the browser it was issued to, by matching the value of the
+	// browser binding cookie on the callback. Otherwise a callback URL captured from one browser could be
+	// completed in another one (login CSRF). The state alone can't prove that, since it's handed to the
+	// browser and the identity provider as an opaque bearer value. Only enforced for the Login action.
+	BrowserBinding string `json:"bb,omitempty"`
+
+	// Set when this login was triggered by UnauthorizedBehavior's Challenge (an authorization
+	// re-check that failed), as opposed to a plain unauthenticated login. Carried through the
+	// callback so the resulting session can be marked as having already attempted a challenge,
+	// regardless of which middleware instance's rules end up handling the callback.
+	IsChallenge bool `json:"is_challenge"`
+
+	// Set when this login was restarted from the callback, either because the identity provider
+	// reported that the previous login flow had expired, or because the state wasn't bound to the
+	// browser completing it. A login is restarted only once, so the callback cannot turn into a
+	// redirect loop (e.g. when the browser doesn't store the browser binding cookie).
+	Retried bool `json:"retried,omitempty"`
+}
+
+// EncodeState serializes and encrypts the state so it can be safely round-tripped through the
+// identity provider as an opaque value. It must be encrypted rather than just encoded: the callback
+// endpoint trusts the decoded fields (notably RedirectUrl) without further validation, so a plain
+// encoding would let anyone forge a state value and turn the callback into an open redirect.
+func EncodeState(state *OidcState, secret string) (string, error) {
+	stateBytes, err := json.Marshal(state)
+
+	if err != nil {
+		return "", err
+	}
+
+	encrypted, err := utils.Encrypt(string(stateBytes), secret)
+	if err != nil {
+		return "", err
+	}
+
+	// Encrypt() returns standard base64, which includes '+', '/' and '='. Re-encode with URL-safe
+	// base64 so the token travels through query strings and identity provider redirects unmodified,
+	// matching the character set of the previous plain encoding.
+	return base64.RawURLEncoding.EncodeToString([]byte(encrypted)), nil
+}
+
+func DecodeState(encodedState string, secret string) (*OidcState, error) {
+	encryptedBytes, err := base64.RawURLEncoding.DecodeString(encodedState)
+	if err != nil {
+		return nil, err
+	}
+
+	stateBytes, err := utils.Decrypt(string(encryptedBytes), secret)
+	if err != nil {
+		return nil, err
+	}
+
+	var state OidcState
+	if err := json.Unmarshal([]byte(stateBytes), &state); err != nil {
+		return nil, err
+	}
+
+	return &state, nil
+}

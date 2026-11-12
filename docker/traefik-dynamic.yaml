@@ -1,0 +1,85 @@
+# Dynamic configuration of the Docker end-to-end test.
+#
+# The `oidc-redis` middleware keeps the sessions in Redis Sentinel; the
+# `oidc-cookie` middleware (mounted on /cookie) keeps them in the cookie, so
+# both session stores are exercised by the same test run.
+http:
+  services:
+    whoami:
+      loadBalancer:
+        servers:
+          - url: http://whoami:80
+
+  middlewares:
+    oidc-redis:
+      plugin:
+        traefik-keycloak-auth:
+          logLevel: DEBUG
+          secret: "0123456789abcdef0123456789abcdef"
+          issuer: "http://keycloak:8080/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "LQslcjK8ZeRrrhW7jKaFUUous9W5QvCr"
+          scopes: ["openid", "profile", "email"]
+          pkce: true
+          usernameClaim: preferred_username
+          forwardHeaders:
+            X-Auth-User: preferred_username
+            X-Auth-Roles: realm_access.roles
+          forwardIDTokenHeader: "X-Id-Token"
+          forwardAccessToken: true
+          claims: "OneOf(`access_token.realm_access.roles`, `admin`)"
+          loginUrl: "/login"
+          logoutUrl: "/logout"
+          postLoginRedirectUrl: "/"
+          postLogoutRedirectUrl: "/"
+          backchannelLogoutUrl: "/backchannel-logout"
+          backchannelLogoutSessionsRequired: true
+          stateCookie:
+            name: "toa-state"
+          store:
+            keyPrefix: "toa:"
+          session:
+            name: "toa-session"
+            expiry: 3600
+            sliding: true
+            refresh: true
+            store:
+              redis:
+                endpoints:
+                  - sentinel-0:26379
+                  - sentinel-1:26379
+                  - sentinel-2:26379
+                sentinel:
+                  masterSet: mymaster
+          csrf:
+            headerName: "Hub-Csrf-Token"
+            secure: false
+
+    oidc-cookie:
+      plugin:
+        traefik-keycloak-auth:
+          logLevel: DEBUG
+          secret: "0123456789abcdef0123456789abcdef"
+          issuer: "http://keycloak:8080/realms/myrealm"
+          redirectUrl: "/cookie/callback"
+          clientID: "traefik"
+          clientSecret: "LQslcjK8ZeRrrhW7jKaFUUous9W5QvCr"
+          scopes: ["openid", "profile", "email"]
+          usernameClaim: preferred_username
+          loginUrl: "/cookie/login"
+
+  routers:
+    whoami-cookie:
+      entryPoints: ["web"]
+      rule: "PathPrefix(`/cookie`)"
+      priority: 100
+      service: whoami
+      middlewares: ["oidc-cookie"]
+
+    whoami:
+      entryPoints: ["web"]
+      rule: "PathPrefix(`/`)"
+      priority: 1
+      service: whoami
+      middlewares: ["oidc-redis"]

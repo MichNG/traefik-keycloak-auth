@@ -1,0 +1,109 @@
+# End-to-end test of the plugin against a real Keycloak, with the sessions
+# stored in Redis Sentinel.
+#
+#   docker compose -f docker-compose.yaml up -d --build
+#   docker compose -f docker-compose.yaml run --rm tester
+#   docker compose -f docker-compose.yaml down -v
+#
+# Topology:
+#   keycloak + postgres          identity provider (realm "myrealm")
+#   redis-master + redis-replica + 3 Sentinels (quorum 2)
+#   traefik                      loads the plugin from the working copy
+#   whoami                       protected upstream
+#   tester                       drives the browser flow with curl
+
+x-sentinel-common: &sentinel-common
+  image: redis:7
+  depends_on:
+    - redis-master
+    - redis-replica
+  restart: on-failure:10
+
+x-sentinel-command: &sentinel-command >-
+  sh -c "printf 'port 26379\nsentinel resolve-hostnames yes\nsentinel announce-hostnames yes\nsentinel monitor mymaster redis-master 6379 2\nsentinel down-after-milliseconds mymaster 5000\nsentinel failover-timeout mymaster 10000\n' > /tmp/sentinel.conf && redis-sentinel /tmp/sentinel.conf"
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.2.5
+    restart: unless-stopped
+    environment:
+      KC_HOSTNAME: "http://keycloak:8080"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-postgres:5432/keycloak
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: postgres
+    volumes:
+      - "./docker/keycloak/realm-myrealm.json:/opt/keycloak/data/import/realm-myrealm.json:ro"
+    command: ["start-dev", "--import-realm"]
+    depends_on:
+      - keycloak-postgres
+
+  keycloak-postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - keycloak_postgres_data:/var/lib/postgresql/data
+
+  redis-master:
+    image: redis:7
+    ports:
+      - 6390:6379
+
+  redis-replica:
+    image: redis:7
+    command: ["redis-server", "--replicaof", "redis-master", "6379"]
+    depends_on:
+      - redis-master
+
+  sentinel-0:
+    <<: *sentinel-common
+    command: *sentinel-command
+    ports:
+      - 26390:26379
+
+  sentinel-1:
+    <<: *sentinel-common
+    command: *sentinel-command
+
+  sentinel-2:
+    <<: *sentinel-common
+    command: *sentinel-command
+
+  traefik:
+    image: traefik:v3.5
+    ports:
+      - "9080:80"
+      - "9081:8080"
+    volumes:
+      - "./docker/traefik-static.yaml:/etc/traefik/traefik.yaml:ro"
+      - "./docker/traefik-dynamic.yaml:/etc/traefik/dynamic.yaml:ro"
+      - ".:/plugins-local/src/github.com/MichNG/traefik-keycloak-auth:ro"
+    depends_on:
+      - keycloak
+      - sentinel-0
+      - sentinel-1
+      - sentinel-2
+
+  whoami:
+    image: traefik/whoami:latest
+
+  tester:
+    image: alpine:3.20
+    depends_on:
+      - traefik
+      - keycloak
+      - sentinel-0
+    volumes:
+      - "./docker/e2e.sh:/e2e.sh:ro"
+    command: sh -c "apk add --no-cache curl redis bash >/dev/null && bash /e2e.sh"
+
+volumes:
+  keycloak_postgres_data:

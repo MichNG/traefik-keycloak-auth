@@ -1,0 +1,34 @@
+# dynamic configuration: OIDC against Keycloak, session kept in a chunked cookie.
+http:
+  routers:
+    app-cookie:
+      rule: "Host(`app.example.com`) && PathPrefix(`/cookie`)"
+      entryPoints: [web]
+      middlewares: [oidc-cookie]
+      service: app
+
+  middlewares:
+    oidc-cookie:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "/cookie/callback"
+          clientID: "traefik"
+          clientSecret: "${CLIENT_SECRET}"
+          secret: "${OIDC_SECRET}"
+          scopes: ["openid", "profile", "email"]
+          pkce: true
+          loginUrl: "/cookie/login"
+          logoutUrl: "/cookie/logout"
+          postLoginRedirectUrl: "/cookie/"
+          session:
+            name: "toa-cookie-session"
+            expiry: 3600
+            sliding: true
+            refresh: true
+
+  services:
+    app:
+      loadBalancer:
+        servers:
+          - url: http://app:8080

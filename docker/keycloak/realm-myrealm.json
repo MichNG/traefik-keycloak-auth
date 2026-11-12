@@ -1,0 +1,70 @@
+{
+  "realm": "myrealm",
+  "enabled": true,
+  "displayName": "myrealm",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "roles": {
+    "realm": [
+      { "name": "admin" },
+      { "name": "media" },
+      { "name": "user" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "traefik",
+      "name": "Traefik OIDC middleware",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "LQslcjK8ZeRrrhW7jKaFUUous9W5QvCr",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://traefik/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*"
+      ],
+      "webOrigins": ["*"],
+      "attributes": {
+        "post.logout.redirect.uris": "http://traefik/*",
+        "backchannel.logout.url": "http://traefik/backchannel-logout",
+        "backchannel.logout.session.required": "true",
+        "backchannel.logout.revoke.offline.tokens": "false"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "testuser",
+      "enabled": true,
+      "email": "testuser@example.com",
+      "emailVerified": true,
+      "firstName": "Test",
+      "lastName": "User",
+      "credentials": [
+        { "type": "password", "value": "testpassword", "temporary": false }
+      ],
+      "realmRoles": ["admin", "user"]
+    },
+    {
+      "username": "nobody",
+      "enabled": true,
+      "email": "nobody@example.com",
+      "emailVerified": true,
+      "firstName": "No",
+      "lastName": "Body",
+      "credentials": [
+        { "type": "password", "value": "nobodypassword", "temporary": false }
+      ],
+      "realmRoles": ["user"]
+    }
+  ]
+}

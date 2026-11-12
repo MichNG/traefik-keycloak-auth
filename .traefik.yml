@@ -1,0 +1,28 @@
+displayName: Traefik Keycloak Auth
+type: middleware
+iconPath: .assets/icon.png
+
+import: github.com/MichNG/traefik-keycloak-auth
+
+summary: 'Traefik Keycloak Auth: an OpenID Connect relying party for Keycloak (authorization code + PKCE, back-channel logout). Configuration follows the Traefik Hub OpenID Connect Authentication schema (issuer, redirectUrl, clientID/clientSecret, claims, forwardHeaders, session, stateCookie, csrf, store.redis.* including Redis Sentinel); session.store.redis.cluster is not supported. Sessions can be kept server-side in Redis (single instance or Sentinel).'
+
+testData:
+  issuer: "https://keycloak.example.com/realms/myrealm"
+  redirectUrl: "/callback"
+  clientID: "traefik"
+  clientSecret: "my-client-secret"
+  secret: "0123456789abcdef0123456789abcdef"
+  scopes: ["openid", "profile", "email"]
+  pkce: true
+  usernameClaim: preferred_username
+  forwardHeaders:
+    X-Auth-User: preferred_username
+  claims: "OneOf(`access_token.realm_access.roles`, `admin`)"
+  session:
+    expiry: 86400
+    sliding: true
+    refresh: true
+    store:
+      redis:
+        endpoints:
+          - redis:6379

@@ -1,0 +1,51 @@
+# dynamic configuration: OIDC against Keycloak, sessions in Redis Sentinel.
+http:
+  routers:
+    app:
+      rule: "Host(`app.example.com`)"
+      entryPoints: [web]
+      middlewares: [oidc]
+      service: app
+
+  middlewares:
+    oidc:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "${CLIENT_SECRET}"
+          secret: "${OIDC_SECRET}" # extension: 32 chars, encrypts the state and the sessions
+          scopes: ["openid", "profile", "email"]
+          pkce: true
+          usernameClaim: preferred_username
+          forwardHeaders:
+            X-Auth-User: preferred_username
+            X-Auth-Roles: realm_access.roles
+          claims: "OneOf(`access_token.realm_access.roles`, `admin`)"
+          loginUrl: "/login"
+          logoutUrl: "/logout"
+          postLoginRedirectUrl: "/"
+          backchannelLogoutUrl: "/backchannel-logout"
+          backchannelLogoutSessionsRequired: true
+          session:
+            name: "toa-session"
+            expiry: 3600
+            sliding: true
+            refresh: true
+            store:
+              redis:
+                endpoints:
+                  - sentinel-0:26379
+                  - sentinel-1:26379
+                  - sentinel-2:26379
+                sentinel:
+                  masterSet: mymaster
+          csrf:
+            headerName: "Hub-Csrf-Token"
+
+  services:
+    app:
+      loadBalancer:
+        servers:
+          - url: http://app:8080

@@ -1,0 +1,21 @@
+# static configuration of the cookie-session example
+entryPoints:
+  web:
+    address: ":8000"
+
+providers:
+  file:
+    filename: ./example/dynamic-cookie.yaml
+    watch: true
+
+api:
+  dashboard: true
+  insecure: true
+
+log:
+  level: INFO
+
+experimental:
+  localPlugins:
+    traefik-keycloak-auth:
+      moduleName: github.com/MichNG/traefik-keycloak-auth
