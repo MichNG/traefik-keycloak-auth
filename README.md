@@ -1,6 +1,6 @@
 # traefik-keycloak-auth
 
-[![CI](https://github.com/MichNG/traefik-keycloak-auth/actions/workflows/ci.yml/badge.svg)](https://github.com/MichNG/traefik-keycloak-auth/actions/workflows/ci.yml)
+[![CI](https://github.com/MichNG/traefik-keycloak-auth/actions/workflows/ci.yml/badge.svg)](https://github.com/MichNG/traefik-keycloak-auth/actions/workflows/ci.yml) [![E2E](https://github.com/MichNG/traefik-keycloak-auth/actions/workflows/e2e.yml/badge.svg)](https://github.com/MichNG/traefik-keycloak-auth/actions/workflows/e2e.yml)
 
 `github.com/MichNG/traefik-keycloak-auth` - a Traefik middleware plugin that
 protects an upstream service with **OpenID Connect** (authorization code flow,
@@ -39,6 +39,12 @@ experimental:
       moduleName: "github.com/MichNG/traefik-keycloak-auth"
       version: "v1.0.0"
 ```
+
+The plugin is a public repository with the `traefik-plugin` topic, a root
+`.traefik.yml`, a root `go.mod`, vendored dependencies and a `v1.0.0` tag: it is
+therefore eligible for the [Traefik Plugin Catalog](https://plugins.traefik.io/plugins),
+which polls GitHub once a day (nothing to submit; a plugin is fetched from the Go
+module proxy by tag).
 
 For local development, mount the plugin directory and use `localPlugins`:
 
@@ -244,6 +250,13 @@ make yaegi-check                  # Yaegi compatibility check
 make integration                  # Keycloak + Redis Sentinel end-to-end (Docker)
 make integration-down             # tear the stack down
 ```
+
+CI: [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs `gofmt`, `go vet`,
+`go test -race ./...` and the Yaegi check on every push and pull request; the
+end-to-end stack is run by [`.github/workflows/e2e.yml`](.github/workflows/e2e.yml)
+(manual `workflow_dispatch` and a weekly schedule). Dependencies are kept up to
+date by [Dependabot](.github/dependabot.yml) (run `make vendor` after merging a
+runtime dependency update).
 
 The end-to-end stack ([`docker-compose.yaml`](docker-compose.yaml)) runs a real
 Keycloak (26.2.5, realm `myrealm`), a Redis master/replica with three Sentinels,

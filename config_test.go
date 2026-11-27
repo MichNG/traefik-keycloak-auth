@@ -3,6 +3,7 @@ package traefik_keycloak_auth
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/MichNG/traefik-keycloak-auth/internalconfig"
@@ -17,6 +18,46 @@ func newTestConfig() *internalconfig.Config {
 	cfg.RedirectURL = "/callback"
 
 	return cfg
+}
+
+// The plugin catalog runs the plugin with the `testData` of .traefik.yml as a
+// startup validity test, in an environment without Redis and without Keycloak:
+// building the middleware must not require any live dependency (both the Redis
+// client and the discovery are lazy), and the first request must report the
+// unreachable provider as a 500 instead of panicking.
+func TestNew_ManifestTestDataWithoutLiveDependencies(t *testing.T) {
+	cfg := internalconfig.Default()
+	cfg.Issuer = "https://keycloak.example.com/realms/myrealm"
+	cfg.RedirectURL = "/callback"
+	cfg.ClientID = "traefik"
+	cfg.ClientSecret = "my-client-secret"
+	cfg.Secret = "0123456789abcdef0123456789abcdef"
+	cfg.Scopes = []string{"openid", "profile", "email"}
+	cfg.PKCE = true
+	cfg.UsernameClaim = "preferred_username"
+	cfg.ForwardHeaders = map[string]string{"X-Auth-User": "preferred_username"}
+	cfg.Claims = "OneOf(`access_token.realm_access.roles`, `admin`)"
+	cfg.Session = &internalconfig.SessionConfig{
+		Expiry:  86400,
+		Sliding: true,
+		Refresh: true,
+		Store: &internalconfig.StoreConfig{Redis: &internalconfig.RedisStoreConfig{
+			Endpoints: []string{"redis:6379"},
+		}},
+	}
+
+	handler, err := New(context.Background(), http.NotFoundHandler(), cfg, "test")
+	if err != nil {
+		t.Fatalf("the manifest testData must build a middleware without live dependencies: %v", err)
+	}
+
+	rw := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "https://app.example.com/", nil)
+	handler.ServeHTTP(rw, req)
+
+	if rw.Code != http.StatusInternalServerError {
+		t.Fatalf("an unreachable issuer must be reported as a 500, got %d", rw.Code)
+	}
 }
 
 func TestNew_RejectsUnknownTokenValidation(t *testing.T) {

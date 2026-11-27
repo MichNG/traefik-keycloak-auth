@@ -1,0 +1,32 @@
+version: 2
+updates:
+  # Runtime dependencies of the plugin (vendored, so the update must refresh
+  # vendor/ as well: run `make vendor` after merging).
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "deps"
+    groups:
+      go-modules:
+        patterns: ["*"]
+
+  # The Yaegi compatibility check lives in its own module.
+  - package-ecosystem: gomod
+    directory: /tools/yaegicheck
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "deps"
+    groups:
+      yaegicheck:
+        patterns: ["*"]
+
+  # Keep the GitHub Actions of the workflows up to date.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "ci"
