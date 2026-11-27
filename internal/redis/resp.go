@@ -48,6 +48,17 @@ func (v respValue) isError() bool { return v.kind == respError }
 // instance). It distinguishes "no value" from an empty string.
 func (v respValue) IsNil() bool { return v.kind == respNil }
 
+// redisError formats a RESP error reply.
+//
+// The reply is a *concrete* interpreted type: passing it to %w through yaegi's
+// fmt wrapper renders "%!w(stdlib._fmt_Stringer=...)" instead of the server
+// message (a RESP error value is exposed to the compiled fmt as a fmt.Stringer).
+// The text is therefore taken explicitly, so that operators see the real reason
+// (for instance "WRONGPASS invalid username-password pair").
+func redisError(prefix string, reply respValue) error {
+	return fmt.Errorf("%s: %s", prefix, reply.Error())
+}
+
 // String returns the bulk/simple string value, or "" for other kinds.
 func (v respValue) String() string {
 	if v.kind == respSimple || v.kind == respBulk {

@@ -37,7 +37,7 @@ experimental:
   plugins:
     traefik-keycloak-auth:
       moduleName: "github.com/MichNG/traefik-keycloak-auth"
-      version: "v1.0.0"
+      version: "v1.0.1"
 ```
 
 The plugin is a public repository with the `traefik-plugin` topic, a root
@@ -240,6 +240,9 @@ than the Go compiler. The plugin therefore:
   the Go build, and Yaegi resolves them from `vendor/`);
 * avoids custom `http.RoundTripper` values, closures stored in variables, tagless
   `switch` with parallel assignment and named `jwt.MapClaims` type assertions;
+* never formats a RESP error reply with `%w`: the reply is a concrete interpreted
+  type, so the interpreter's `fmt` renders `%!w(stdlib._fmt_Stringer=...)` instead
+  of the server message; `redisError()` passes the text explicitly;
 * converts the JWT claim maps through `encoding/json` before evaluating a `claims`
   expression.
 

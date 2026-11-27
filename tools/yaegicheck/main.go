@@ -10,13 +10,17 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/traefik/yaegi/interp"
@@ -65,6 +69,7 @@ func main() {
 	checkConfigurationErrors(i, newFn)
 	checkClaims(i)
 	checkRequest(i, newFn)
+	checkReadableStoreErrors(i)
 
 	fmt.Println("OK: the plugin compiles and runs under yaegi")
 }
@@ -345,6 +350,139 @@ func copyTree(src, dst string) error {
 		}
 		return os.WriteFile(filepath.Join(dst, rel), data, 0o644)
 	})
+}
+
+// checkReadableStoreErrors makes sure a store error keeps its message when it
+// crosses the interpreter boundary: a RESP error is a concrete interpreted type,
+// and passing it to %w through yaegi's fmt wrapper renders
+// "%!w(stdlib._fmt_Stringer=...)" instead of the reason (here an AUTH failure,
+// the most common production misconfiguration).
+func checkReadableStoreErrors(i *interp.Interpreter) {
+	fmt.Println("=== store errors must keep their message (AUTH failure) ===")
+
+	addr, stopServer := startAuthFailingRedis()
+	defer stopServer()
+
+	if _, err := i.Eval(fmt.Sprintf("import %q", moduleRoot+"/internal/redis")); err != nil {
+		fail("importing the redis package: %v", err)
+	}
+	for _, imp := range []string{"context", "time"} {
+		if _, err := i.Eval(fmt.Sprintf("import %q", imp)); err != nil {
+			fail("importing %s: %v", imp, err)
+		}
+	}
+	if _, err := i.Eval("type nopLogger struct{}\nfunc (nopLogger) Logf(string, ...interface{}) {}"); err != nil {
+		fail("declaring the logger: %v", err)
+	}
+
+	if _, err := i.Eval(fmt.Sprintf(`provider, err := redis.NewStaticProvider([]string{%q}, 0)`, addr)); err != nil {
+		fail("creating the provider: %v", err)
+	}
+	if _, err := i.Eval(`client, err := redis.NewClient(context.Background(), redis.ClientConfig{Username: "app", Password: "wrong", ConnectTimeout: time.Second, CommandTimeout: time.Second}, nil, provider, nopLogger{})`); err != nil {
+		fail("creating the client: %v", err)
+	}
+	if _, err := i.Eval(`perr := client.Ping(context.Background())`); err != nil {
+		fail("pinging the store: %v", err)
+	}
+
+	messageValue, err := i.Eval(`perr.Error()`)
+	if err != nil {
+		fail("reading the error: %v", err)
+	}
+	message := fmt.Sprint(messageValue.Interface())
+
+	if !strings.Contains(message, "WRONGPASS invalid username-password pair") {
+		fail("the store error message was lost under yaegi: %q", message)
+	}
+	if strings.Contains(message, "%!") {
+		fail("the store error was rendered with a fmt marker under yaegi: %q", message)
+	}
+	if !strings.Contains(message, "authenticating against Redis") {
+		fail("the store error lost its context under yaegi: %q", message)
+	}
+
+	fmt.Println("OK: the store error (AUTH failure) is readable under yaegi")
+}
+
+// startAuthFailingRedis serves just enough RESP2 to make the client AUTH fail.
+func startAuthFailingRedis() (string, func()) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		fail("starting the mock Redis: %v", err)
+	}
+
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+
+			go func(c net.Conn) {
+				defer func() { _ = c.Close() }()
+
+				rd := bufio.NewReader(c)
+				for {
+					args, err := readRESPCommand(rd)
+					if err != nil {
+						return
+					}
+					if len(args) == 0 {
+						continue
+					}
+					if strings.ToUpper(args[0]) == "AUTH" {
+						_, _ = io.WriteString(c, "-WRONGPASS invalid username-password pair or user is disabled.\r\n")
+						continue
+					}
+					_, _ = io.WriteString(c, "+OK\r\n")
+				}
+			}(conn)
+		}
+	}()
+
+	return ln.Addr().String(), func() { _ = ln.Close() }
+}
+
+// readRESPCommand parses a RESP array of bulk strings.
+func readRESPCommand(rd *bufio.Reader) ([]string, error) {
+	line, err := rd.ReadString('\n')
+	if err != nil {
+		return nil, err
+	}
+	line = strings.TrimRight(line, "\r\n")
+	if len(line) == 0 || line[0] != '*' {
+		return nil, fmt.Errorf("mock redis: unexpected %q", line)
+	}
+
+	n, err := strconv.Atoi(line[1:])
+	if err != nil {
+		return nil, err
+	}
+
+	args := make([]string, 0, n)
+	for i := 0; i < n; i++ {
+		hdr, err := rd.ReadString('\n')
+		if err != nil {
+			return nil, err
+		}
+		hdr = strings.TrimRight(hdr, "\r\n")
+		if len(hdr) == 0 || hdr[0] != '$' {
+			return nil, fmt.Errorf("mock redis: unexpected %q", hdr)
+		}
+
+		length, err := strconv.Atoi(hdr[1:])
+		if err != nil {
+			return nil, err
+		}
+
+		buf := make([]byte, length+2)
+		if _, err := io.ReadFull(rd, buf); err != nil {
+			return nil, err
+		}
+		args = append(args, string(buf[:length]))
+	}
+
+	return args, nil
 }
 
 func fail(format string, args ...interface{}) {

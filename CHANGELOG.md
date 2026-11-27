@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.1
+
+* **Readable store errors under Yaegi**: a RESP error reply is a concrete
+  interpreted type, so formatting it with `%w` through the interpreter rendered
+  `%!w(stdlib._fmt_Stringer=...)` instead of the server message. The Redis and
+  Sentinel error paths (AUTH, `SELECT`, `SCRIPT LOAD`, Sentinel authentication,
+  `SENTINEL get-master-addr-by-name`, `SUBSCRIBE`) now carry the real message
+  (for instance `WRONGPASS invalid username-password pair`), which matters most
+  when a deployment has the wrong credentials or a missing ACL user.
+* `make yaegi-check` gained a guard for it (a mock Redis that fails `AUTH`) and
+  `TestAuthenticationErrorIsReadable` covers the message content in Go.
+
 ## 1.0.0
 
 Initial release of `traefik-keycloak-auth`, a standalone Traefik middleware
