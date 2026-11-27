@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.2
+
+* **Connection pool defaults**: the idle pool is now as large as the connection
+  cap (was 5) instead of a fixed small value. A smaller idle pool closes
+  connections under concurrency and re-dials them, which churns through the
+  ephemeral ports until `connect: cannot assign requested address` opens the
+  circuit breaker and the session store answers 503 (measured upstream in
+  `traefik-distributed-rate-limit`, `docs/16-benchmark-p99.md`). Covered by
+  `TestClientConfigDefaultsKeepIdleCapacity`.
+* README: the Redis option table no longer lists connection options that the Hub
+  OpenID Connect reference does not define; the data plane defaults are
+  documented instead.
+
 ## 1.0.1
 
 * **Readable store errors under Yaegi**: a RESP error reply is a concrete

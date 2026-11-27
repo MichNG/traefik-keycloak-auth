@@ -136,15 +136,20 @@ A complete runnable pair of files is in
 | `session.store.redis.endpoints` | Redis endpoints (or the Sentinel endpoints in Sentinel mode). | — (required) |
 | `session.store.redis.username` / `.password` | Redis ACL credentials. `$ENV_VAR` is expanded from the environment. | `""` |
 | `session.store.redis.database` | Database index (also valid in Sentinel mode). | `0` |
-| `session.store.redis.timeout` | Timeout applied to dial, read and write operations. | `2s` |
-| `session.store.redis.poolSize` / `.maxActiveConns` | Idle connections kept per node / hard cap of opened connections. | `5` / `10 * GOMAXPROCS` |
-| `session.store.redis.idleTimeout` | Suspend the discovery and close the idle connections after that much inactivity (`0` disables it). | `0` |
 | `session.store.redis.sentinel.masterSet` | Name of the Sentinel master set. | — (required with Sentinel) |
 | `session.store.redis.sentinel.username` / `.password` | Credentials for the Sentinels themselves (may differ from the data-plane ones). | `""` |
 | `session.store.redis.tls.caBundle` | CA bundle used to verify Redis **and** the Sentinels: a file path **or** the PEM content itself. The system bundle is used when empty. | `""` |
 | `session.store.redis.tls.cert` | Client certificate (mTLS): a file path **or** the PEM content. Must be set together with `key`. | `""` |
 | `session.store.redis.tls.key` | Client private key (mTLS): a file path **or** the PEM content. Must be set together with `cert`. | `""` |
 | `session.store.redis.tls.insecureSkipVerify` | Skip the verification of the server certificate (development only). | `false` |
+
+The reference exposes no timeout or connection-pool option, so the data plane
+applies its own defaults: **dial 5 s**, **command 3 s**, an **idle pool as large as
+the connection cap**, and a connection cap of **10 × GOMAXPROCS**. The idle pool is
+deliberately not smaller than the cap: a smaller one closes connections under
+concurrency and re-dials them, which churns through the ephemeral ports and ends in
+an open circuit breaker (measured upstream in
+[`traefik-distributed-rate-limit`](https://github.com/MichNG/traefik-distributed-rate-limit)).
 | `store.keyPrefix` | Prefix of the Redis keys. | `traefik-keycloak-auth:` |
 | `csrf` | Signed double-submit cookie CSRF protection (`headerName`, `cookieName`, `secret`, `secure`, `sameSite`). | disabled |
 | `unauthorizedBehavior` | `Unauthorized` (401) or `Forward` (let the request reach the backend unauthenticated). | `Unauthorized` |
