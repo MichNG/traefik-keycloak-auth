@@ -1,0 +1,22 @@
+# Static configuration used by the Sentinel+TLS end-to-end test.
+entryPoints:
+  web:
+    address: ":80"
+
+providers:
+  file:
+    filename: /etc/traefik/dynamic.yaml
+    watch: true
+
+api:
+  dashboard: true
+  insecure: true
+
+log:
+  level: DEBUG
+  format: common
+
+experimental:
+  localPlugins:
+    traefik-keycloak-auth:
+      moduleName: github.com/MichNG/traefik-keycloak-auth

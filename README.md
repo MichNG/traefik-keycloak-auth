@@ -203,6 +203,11 @@ session:
       insecureSkipVerify: true
 ```
 
+The TLS path to Redis and to the Sentinels is exercised end-to-end by a dedicated
+Docker stack (mutual TLS: `tls-auth-clients yes` on every Redis and Sentinel,
+`tls-replication yes` for the replica → master link, and the plugin connecting
+with `caBundle`/`cert`/`key`), see `make integration-tls`.
+
 The connections to the **OIDC provider** are configured separately, with the same
 path-or-PEM semantics, under `clientConfig.tls`
 (`ca`, `cert`, `key`, `insecureSkipVerify`):
@@ -261,6 +266,8 @@ make test-race                    # gofmt + go vet + unit tests (-race)
 make yaegi-check                  # Yaegi compatibility check
 make integration                  # Keycloak + Redis Sentinel end-to-end (Docker)
 make integration-down             # tear the stack down
+make integration-tls              # the same, over TLS with mutual authentication
+make integration-tls-down         # tear the TLS stack down
 ```
 
 CI: [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs `gofmt`, `go vet`,

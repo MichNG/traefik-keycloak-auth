@@ -34,3 +34,26 @@ jobs:
       - name: tear down
         if: always()
         run: docker compose -f docker-compose.yaml down -v --remove-orphans
+
+  keycloak-sentinel-tls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: generate the test PKI
+        run: docker/tls/generate-certs.sh
+
+      - name: start the TLS stack (Keycloak + Redis Sentinel over mTLS + Traefik)
+        run: docker compose -p plugin-tls -f docker-compose.sentinel-tls.yaml up -d --build
+
+      - name: run the end-to-end test
+        run: docker compose -p plugin-tls -f docker-compose.sentinel-tls.yaml run --rm tester
+
+      - name: Traefik logs on failure
+        if: failure()
+        run: docker compose -p plugin-tls -f docker-compose.sentinel-tls.yaml logs traefik
+
+      - name: tear down
+        if: always()
+        run: docker compose -p plugin-tls -f docker-compose.sentinel-tls.yaml down -v --remove-orphans

@@ -1,0 +1,147 @@
+# End-to-end test of the plugin against a real Keycloak, with the sessions
+# stored in a Redis master/replica discovered through Redis Sentinel where every
+# connection (data plane *and* Sentinel, client -> server and replica -> master)
+# is TLS with mutual authentication (mTLS).
+#
+#   docker/tls/generate-certs.sh
+#   docker compose -f docker-compose.sentinel-tls.yaml up -d --build
+#   docker compose -f docker-compose.sentinel-tls.yaml run --rm tester
+#   docker compose -f docker-compose.sentinel-tls.yaml down -v
+#
+# Topology:
+#   keycloak + postgres          identity provider (realm "myrealm")
+#   redis-master + redis-replica + 3 Sentinels (quorum 2), TLS-only
+#   traefik                      loads the plugin from the working copy
+#   whoami                       protected upstream
+#   tester                       drives the browser flow with curl + redis-cli --tls
+
+x-tls-redis-common: &tls-redis-common
+  image: redis:7
+  volumes:
+    - "./docker/tls/out:/tls:ro"
+  restart: unless-stopped
+
+# Redis only listens on the TLS port; clients must present a certificate.
+x-tls-flags: &tls-flags "redis-server --port 0 --tls-port 6379 --tls-cert-file /tls/server.crt --tls-key-file /tls/server.key --tls-ca-cert-file /tls/ca.crt --tls-auth-clients yes"
+
+x-sentinel-common: &sentinel-common
+  <<: *tls-redis-common
+  depends_on:
+    - redis-master
+    - redis-replica
+  restart: on-failure:10
+
+# `tls-replication yes` is what makes the Sentinels talk to Redis over TLS
+# (they authenticate with their own certificate).
+x-sentinel-command: &sentinel-command >-
+  sh -c "printf 'port 0\ntls-port 26379\ntls-cert-file /tls/server.crt\ntls-key-file /tls/server.key\ntls-ca-cert-file /tls/ca.crt\ntls-auth-clients yes\ntls-replication yes\nsentinel resolve-hostnames yes\nsentinel announce-hostnames yes\nsentinel monitor mymaster redis-master 6379 2\nsentinel down-after-milliseconds mymaster 15000\nsentinel failover-timeout mymaster 10000\n' > /tmp/sentinel.conf && redis-sentinel /tmp/sentinel.conf"
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.2.5
+    restart: unless-stopped
+    environment:
+      KC_HOSTNAME: "http://keycloak:8080"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-postgres:5432/keycloak
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: postgres
+    volumes:
+      - "./docker/keycloak/realm-myrealm.json:/opt/keycloak/data/import/realm-myrealm.json:ro"
+    command: ["start-dev", "--import-realm"]
+    depends_on:
+      - keycloak-postgres
+
+  keycloak-postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - keycloak_postgres_data:/var/lib/postgresql/data
+
+  redis-master:
+    <<: *tls-redis-common
+    command: ["sh", "-c", *tls-flags]
+    networks:
+      default:
+        ipv4_address: 172.31.0.10
+    ports:
+      - 6391:6379
+
+  redis-replica:
+    <<: *tls-redis-common
+    command: ["sh", "-c", "exec redis-server --port 0 --tls-port 6379 --tls-cert-file /tls/server.crt --tls-key-file /tls/server.key --tls-ca-cert-file /tls/ca.crt --tls-auth-clients yes --tls-replication yes --replicaof redis-master 6379"]
+    networks:
+      default:
+        ipv4_address: 172.31.0.11
+    depends_on:
+      - redis-master
+
+  sentinel-0:
+    <<: *sentinel-common
+    command: *sentinel-command
+    networks:
+      default:
+        ipv4_address: 172.31.0.20
+    ports:
+      - 26391:26379
+
+  sentinel-1:
+    <<: *sentinel-common
+    command: *sentinel-command
+    networks:
+      default:
+        ipv4_address: 172.31.0.21
+
+  sentinel-2:
+    <<: *sentinel-common
+    command: *sentinel-command
+    networks:
+      default:
+        ipv4_address: 172.31.0.22
+
+  traefik:
+    image: traefik:v3.5
+    ports:
+      - "9380:80"
+      - "9381:8080"
+    volumes:
+      - "./docker/traefik-tls-static.yaml:/etc/traefik/traefik.yaml:ro"
+      - "./docker/traefik-tls-dynamic.yaml:/etc/traefik/dynamic.yaml:ro"
+      - "./docker/tls/out:/tls:ro"
+      - ".:/plugins-local/src/github.com/MichNG/traefik-keycloak-auth:ro"
+    depends_on:
+      - keycloak
+      - sentinel-0
+      - sentinel-1
+      - sentinel-2
+
+  whoami:
+    image: traefik/whoami:latest
+
+  tester:
+    image: redis:7-alpine
+    depends_on:
+      - traefik
+      - keycloak
+      - sentinel-0
+    volumes:
+      - "./docker/e2e-tls.sh:/e2e.sh:ro"
+      - "./docker/tls/out:/tls:ro"
+    command: sh -c "apk add --no-cache curl bash >/dev/null && bash /e2e.sh"
+
+volumes:
+  keycloak_postgres_data:
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.31.0.0/24

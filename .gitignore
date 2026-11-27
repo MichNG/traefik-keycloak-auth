@@ -6,3 +6,6 @@
 coverage.txt
 cover.html
 .DS_Store
+
+# Generated PKI of the Sentinel+TLS end-to-end test
+docker/tls/out/

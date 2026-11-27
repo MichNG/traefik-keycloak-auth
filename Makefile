@@ -1,4 +1,4 @@
-.PHONY: test test-race cover lint yaegi-check vendor integration integration-down
+.PHONY: test test-race cover lint yaegi-check vendor certs integration integration-down integration-tls integration-tls-down
 
 # Runs gofmt, go vet and the whole test suite. The Go caches are kept inside
 # the repository so that the target also works in restricted environments.
@@ -35,3 +35,17 @@ integration:
 
 integration-down:
 	@docker compose -f docker-compose.yaml down -v --remove-orphans
+
+# Generates the test PKI for the Sentinel+TLS stack (docker/tls/out, not committed).
+certs:
+	@docker/tls/generate-certs.sh
+
+# Keycloak + Redis Sentinel end-to-end test where every Redis/Sentinel connection
+# is TLS with mutual authentication. A separate compose project name, so it can
+# run next to the plain stack.
+integration-tls: certs
+	@docker compose -p plugin-tls -f docker-compose.sentinel-tls.yaml up -d --build
+	@docker compose -p plugin-tls -f docker-compose.sentinel-tls.yaml run --rm tester
+
+integration-tls-down:
+	@docker compose -p plugin-tls -f docker-compose.sentinel-tls.yaml down -v --remove-orphans
