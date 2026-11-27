@@ -46,6 +46,10 @@ therefore eligible for the [Traefik Plugin Catalog](https://plugins.traefik.io/p
 which polls GitHub once a day (nothing to submit; a plugin is fetched from the Go
 module proxy by tag).
 
+Until the crawler has indexed this repository, `experimental.plugins` answers
+`Unknown plugin: github.com/MichNG/traefik-keycloak-auth@v1.0.0`; use
+`localPlugins` in the meantime.
+
 For local development, mount the plugin directory and use `localPlugins`:
 
 ```yaml
