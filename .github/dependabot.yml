@@ -22,6 +22,10 @@ updates:
     groups:
       yaegicheck:
         patterns: ["*"]
+    # The check must load the plugin with the same interpreter Traefik ships
+    # (v3.5 uses Yaegi 0.16.1): the version is bumped by hand with Traefik.
+    ignore:
+      - dependency-name: github.com/traefik/yaegi
 
   # Keep the GitHub Actions of the workflows up to date.
   - package-ecosystem: github-actions
