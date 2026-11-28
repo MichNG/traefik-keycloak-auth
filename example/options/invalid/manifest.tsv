@@ -1,0 +1,10 @@
+# file	middleware/router	expected error substring
+bad-expiry.yaml	bad-expiry	expiry
+bad-redirect-url.yaml	bad-redirect-url	redirectUrl
+bad-threshold.yaml	bad-threshold	tokenRenewalThreshold
+bad-token-validation.yaml	bad-token-validation	tokenValidation
+client-cert-without-key.yaml	client-cert-without-key	must be set together
+cluster.yaml	cluster	Redis Cluster
+missing-master-set.yaml	missing-master-set	masterSet
+short-secret.yaml	short-secret	32 characters
+store-cert-without-key.yaml	store-cert-without-key	cert and key

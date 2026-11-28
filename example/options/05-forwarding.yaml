@@ -1,0 +1,46 @@
+# Forwarding claims upstream (headers, ID token, access token, templates)
+#
+# Options covered: forwardHeaders, forwardIDTokenHeader, forwardAccessToken, usernameClaim, identity, headers[*].{name,value,values,includeWhen}
+# Loaded by the "options" end-to-end check (docker/e2e-options.sh) into a real
+# Traefik, so this file must stay a valid dynamic configuration.
+
+http:
+  middlewares:
+    forwarding:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "${CLIENT_SECRET}"
+          secret: "0123456789abcdef0123456789abcdef"
+          # forwarded headers: a scalar claim, an array claim (repeated header)
+          forwardHeaders:
+            X-Auth-User: preferred_username
+            X-Auth-Roles: realm_access.roles
+            X-Auth-Email: "id_token.email"
+          forwardIDTokenHeader: "X-Id-Token"
+          # extension: inject the access token upstream for an authorized session
+          forwardAccessToken: true
+          usernameClaim: preferred_username
+          identity: sub
+          # extension: headers rendered from a Go template over the claims.
+          #
+          # NOTE: Traefik renders the *file provider* configuration as a Go
+          # template itself (even inside comments), so the double-brace form
+          # never reaches the plugin from a file, and a template the plugin
+          # alone understands aborts the whole file.
+          # With the file provider, use literal values; the templated form is
+          # meant for providers that pass the configuration through untouched
+          # (Traefik Hub, Kubernetes CRD) and is covered by the plugin's tests.
+          headers:
+            - name: "X-Subject"
+              value: "static-value"
+            - name: "X-Static-Roles"
+              values: '["admin","user"]'
+              includeWhen: "Always"
+  routers:
+    forwarding:
+      rule: "PathPrefix(`/forwarding`)"
+      middlewares: ["forwarding"]
+      service: noop@internal

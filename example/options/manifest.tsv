@@ -1,0 +1,27 @@
+# file	middleware	router (one row per router of the example)
+01-core.yaml	core	core
+02-issuer-validation.yaml	issuer-trusted	issuer-trusted
+02-issuer-validation.yaml	issuer-skip-check	issuer-skip-check
+03-discovery-auth-params.yaml	params	params
+04-claims.yaml	claims-equals	claims-equals
+04-claims.yaml	claims-prefix	claims-prefix
+04-claims.yaml	claims-oneof	claims-oneof
+04-claims.yaml	claims-split	claims-split
+05-forwarding.yaml	forwarding	forwarding
+06-client-config.yaml	client-timeouts	client-timeouts
+06-client-config.yaml	client-tls-ca	client-tls-ca
+06-client-config.yaml	client-tls-mtls	client-tls-mtls
+06-client-config.yaml	client-tls-insecure	client-tls-insecure
+07-session-cookie.yaml	session-flags	session-flags
+08-state-cookie.yaml	statecookie	statecookie
+09-store-redis-single.yaml	redis-single	redis-single
+10-store-redis-flat.yaml	redis-flat	redis-flat
+11-store-sentinel.yaml	sentinel	sentinel
+12-store-tls-paths.yaml	store-tls-paths	store-tls-paths
+13-store-tls-inline.yaml	store-tls-inline	store-tls-inline
+13-store-tls-inline.yaml	store-tls-insecure	store-tls-insecure
+14-csrf.yaml	csrf	csrf
+15-disable-login.yaml	no-login-route	no-login-route
+16-token-validation.yaml	tv-access-token	tv-access-token
+16-token-validation.yaml	tv-introspection	tv-introspection
+17-backchannel.yaml	backchannel	backchannel

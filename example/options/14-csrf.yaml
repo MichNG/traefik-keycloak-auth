@@ -1,0 +1,24 @@
+# CSRF protection (signed double-submit cookie)
+#
+# Options covered: csrf.{headerName,secure}
+# Loaded by the "options" end-to-end check (docker/e2e-options.sh) into a real
+# Traefik, so this file must stay a valid dynamic configuration.
+
+http:
+  middlewares:
+    csrf:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "${CLIENT_SECRET}"
+          secret: "0123456789abcdef0123456789abcdef"
+          csrf:
+            headerName: "Hub-Csrf-Token"
+            secure: true
+  routers:
+    csrf:
+      rule: "PathPrefix(`/csrf`)"
+      middlewares: ["csrf"]
+      service: noop@internal

@@ -1,0 +1,38 @@
+# Core OIDC options (issuer, redirect, client credentials, paths, scopes)
+#
+# Options covered: issuer, redirectUrl, clientID, clientSecret, secret, scopes, pkce, loginUrl, logoutUrl, postLoginRedirectUrl, postLogoutRedirectUrl, validPostLoginRedirectUris, validPostLogoutRedirectUris, allowRedirectUriWildcards, disableLogin, logLevel
+# Loaded by the "options" end-to-end check (docker/e2e-options.sh) into a real
+# Traefik, so this file must stay a valid dynamic configuration.
+
+http:
+  middlewares:
+    core:
+      plugin:
+        traefik-keycloak-auth:
+          # required core options
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "${CLIENT_SECRET}"
+          secret: "0123456789abcdef0123456789abcdef"
+          # scopes / PKCE
+          scopes: ["openid", "profile", "email"]
+          pkce: true
+          # paths handled by the plugin, and where it redirects after login/logout
+          loginUrl: "/login"
+          logoutUrl: "/logout"
+          postLoginRedirectUrl: "/"
+          postLogoutRedirectUrl: "/"
+          # extra allowed redirect targets (the same-origin URL is always allowed)
+          validPostLoginRedirectUris: ["https://app.example.com/welcome"]
+          validPostLogoutRedirectUris: ["https://app.example.com/bye"]
+          # extension: the `*` wildcard for THIS middleware instead of the
+          # process-wide TOA_ENABLE_REDIRECT_URI_WILDCARDS
+          allowRedirectUriWildcards: true
+          disableLogin: false
+          logLevel: "INFO"
+  routers:
+    core:
+      rule: "PathPrefix(`/core`)"
+      middlewares: ["core"]
+      service: noop@internal

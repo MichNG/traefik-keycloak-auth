@@ -127,6 +127,9 @@ func Adapt(h *Config) (*Adapted, error) {
 	}
 	cfg.CallbackUri = expand(cfg.CallbackUri)
 	cfg.PostLoginRedirectUri = expand(h.PostLoginRedirectURL)
+	cfg.ValidPostLoginRedirectUris = expandList(h.ValidPostLoginRedirectUris)
+	cfg.ValidPostLogoutRedirectUris = expandList(h.ValidPostLogoutRedirectUris)
+
 	cfg.PostLogoutRedirectUri = expand(h.PostLogoutRedirectURL)
 	cfg.LoginUri = expand(cfg.LoginUri)
 	cfg.LogoutUri = expand(cfg.LogoutUri)
@@ -361,6 +364,19 @@ func orDefault(value, fallback string) string {
 
 func expand(value string) string {
 	return utils.ExpandEnvironmentVariableString(strings.TrimSpace(value))
+}
+
+func expandList(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+
+	expanded := make([]string, 0, len(values))
+	for _, value := range values {
+		expanded = append(expanded, expand(value))
+	}
+
+	return expanded
 }
 
 func expandMap(m map[string]string) map[string]string {

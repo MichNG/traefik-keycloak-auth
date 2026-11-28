@@ -1,0 +1,75 @@
+# Provider connection (timeouts, retries, TLS, mTLS)
+#
+# Options covered: clientConfig.timeoutSeconds, clientConfig.maxRetries, clientConfig.tls.{ca,cert,key,insecureSkipVerify}
+# Loaded by the "options" end-to-end check (docker/e2e-options.sh) into a real
+# Traefik, so this file must stay a valid dynamic configuration.
+
+http:
+  middlewares:
+    client-timeouts:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "${CLIENT_SECRET}"
+          secret: "0123456789abcdef0123456789abcdef"
+          clientConfig:
+            timeoutSeconds: 5
+            maxRetries: 3
+    client-tls-ca:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "${CLIENT_SECRET}"
+          secret: "0123456789abcdef0123456789abcdef"
+          clientConfig:
+            tls:
+              # a file path or the PEM content itself
+              ca: "/etc/ssl/certs/keycloak-ca.pem"
+    client-tls-mtls:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "${CLIENT_SECRET}"
+          secret: "0123456789abcdef0123456789abcdef"
+          clientConfig:
+            tls:
+              # cert and key must be set together. Variant: the PEM content
+              # itself instead of a path (for instance the value of an
+              # environment variable, expanded by the plugin).
+              cert: "/tls/client.crt"
+              key: "/tls/client.key"
+    client-tls-insecure:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "${CLIENT_SECRET}"
+          secret: "0123456789abcdef0123456789abcdef"
+          clientConfig:
+            tls:
+              # development only
+              insecureSkipVerify: true
+  routers:
+    client-timeouts:
+      rule: "PathPrefix(`/client-timeouts`)"
+      middlewares: ["client-timeouts"]
+      service: noop@internal
+    client-tls-ca:
+      rule: "PathPrefix(`/client-tls-ca`)"
+      middlewares: ["client-tls-ca"]
+      service: noop@internal
+    client-tls-mtls:
+      rule: "PathPrefix(`/client-tls-mtls`)"
+      middlewares: ["client-tls-mtls"]
+      service: noop@internal
+    client-tls-insecure:
+      rule: "PathPrefix(`/client-tls-insecure`)"
+      middlewares: ["client-tls-insecure"]
+      service: noop@internal

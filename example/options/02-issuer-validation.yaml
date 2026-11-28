@@ -1,0 +1,38 @@
+# Issuer validation (trustedIssuer / disableIssuerCheck)
+#
+# Options covered: trustedIssuer, disableIssuerCheck
+# Loaded by the "options" end-to-end check (docker/e2e-options.sh) into a real
+# Traefik, so this file must stay a valid dynamic configuration.
+
+http:
+  middlewares:
+    issuer-trusted:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          # the issuer announced by the discovery document differs (e.g. an
+          # external host name behind a proxy)
+          trustedIssuer: "https://id.example.com/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "${CLIENT_SECRET}"
+          secret: "0123456789abcdef0123456789abcdef"
+    issuer-skip-check:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.internal:8443/realms/myrealm"
+          # variant: accept whatever the discovery document announces
+          disableIssuerCheck: true
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "${CLIENT_SECRET}"
+          secret: "0123456789abcdef0123456789abcdef"
+  routers:
+    issuer-trusted:
+      rule: "PathPrefix(`/issuer-trusted`)"
+      middlewares: ["issuer-trusted"]
+      service: noop@internal
+    issuer-skip-check:
+      rule: "PathPrefix(`/issuer-skip`)"
+      middlewares: ["issuer-skip-check"]
+      service: noop@internal

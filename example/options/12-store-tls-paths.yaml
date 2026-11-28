@@ -1,0 +1,32 @@
+# Redis/Sentinel TLS with file paths (custom CA + mTLS)
+#
+# Options covered: session.store.redis.tls.{caBundle,cert,key} (paths)
+# Loaded by the "options" end-to-end check (docker/e2e-options.sh) into a real
+# Traefik, so this file must stay a valid dynamic configuration.
+
+http:
+  middlewares:
+    store-tls-paths:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "${CLIENT_SECRET}"
+          secret: "0123456789abcdef0123456789abcdef"
+          session:
+            store:
+              redis:
+                endpoints: ["sentinel-0:26379", "sentinel-1:26379", "sentinel-2:26379"]
+                sentinel:
+                  masterSet: "mymaster"
+                tls:
+                  # variant: paths to the files
+                  caBundle: "/tls/ca.crt"
+                  cert: "/tls/client.crt"
+                  key: "/tls/client.key"
+  routers:
+    store-tls-paths:
+      rule: "PathPrefix(`/store-tls-paths`)"
+      middlewares: ["store-tls-paths"]
+      service: noop@internal

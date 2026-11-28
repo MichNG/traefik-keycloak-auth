@@ -1,0 +1,32 @@
+# Session cookie and lifetime (cookie storage)
+#
+# Options covered: session.{name,path,domain,expiry,maxAge,sliding,refresh,sameSite,httpOnly,secure}
+# Loaded by the "options" end-to-end check (docker/e2e-options.sh) into a real
+# Traefik, so this file must stay a valid dynamic configuration.
+
+http:
+  middlewares:
+    session-flags:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "${CLIENT_SECRET}"
+          secret: "0123456789abcdef0123456789abcdef"
+          session:
+            name: "toa-session"
+            path: "/"
+            domain: "app.example.com"
+            expiry: 86400
+            maxAge: 604800
+            sliding: true
+            refresh: true
+            sameSite: "lax"
+            httpOnly: true
+            secure: true
+  routers:
+    session-flags:
+      rule: "PathPrefix(`/session-flags`)"
+      middlewares: ["session-flags"]
+      service: noop@internal

@@ -78,6 +78,14 @@ type Config struct {
 	// exposed through headers/logging: a middleware plugin cannot feed the Hub
 	// semantic cache.
 	Identity string `json:"identity,omitempty" mapstructure:"identity"`
+	// ValidPostLoginRedirectUris / ValidPostLogoutRedirectUris are extensions
+	// of this plugin. They list the cross-origin redirect targets accepted after
+	// a login/logout; a URL on the callback host is always accepted, and the `*`
+	// wildcard is accepted when AllowRedirectUriWildcards (or the
+	// TOA_ENABLE_REDIRECT_URI_WILDCARDS variable) is set.
+	ValidPostLoginRedirectUris  []string `json:"validPostLoginRedirectUris,omitempty" mapstructure:"validPostLoginRedirectUris"`
+	ValidPostLogoutRedirectUris []string `json:"validPostLogoutRedirectUris,omitempty" mapstructure:"validPostLogoutRedirectUris"`
+
 	// ForwardHeaders maps an HTTP header name to a claim name; the header is
 	// set from the claim value. When the claim is missing from the JWT, the
 	// header is removed from the request, even if the client sent a value.

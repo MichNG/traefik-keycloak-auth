@@ -1,0 +1,64 @@
+# Authorization expression variants
+#
+# Options covered: claims (Equals / Prefix / Contains / SplitContains / OneOf / && || ! / token prefixes / nested keys)
+# Loaded by the "options" end-to-end check (docker/e2e-options.sh) into a real
+# Traefik, so this file must stay a valid dynamic configuration.
+
+http:
+  middlewares:
+    claims-equals:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "${CLIENT_SECRET}"
+          secret: "0123456789abcdef0123456789abcdef"
+          claims: "Equals(`preferred_username`, `admin`)"
+    claims-prefix:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "${CLIENT_SECRET}"
+          secret: "0123456789abcdef0123456789abcdef"
+          # Prefix/Contains/SplitContains, combined with && || !
+          claims: "Prefix(`preferred_username`, `svc-`) && !Contains(`email`, `@external.example.com`)"
+    claims-oneof:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "${CLIENT_SECRET}"
+          secret: "0123456789abcdef0123456789abcdef"
+          # the access token is parsed without an audience check (Keycloak sets no `aud`)
+          claims: "OneOf(`access_token.realm_access.roles`, `admin`, `operator`)"
+    claims-split:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "${CLIENT_SECRET}"
+          secret: "0123456789abcdef0123456789abcdef"
+          # nested keys and the id_token./access_token. prefixes
+          claims: "SplitContains(`access_token.scope`, ` `, `audience-a`) || Equals(`id_token.acr`, `gold`)"
+  routers:
+    claims-equals:
+      rule: "PathPrefix(`/claims-equals`)"
+      middlewares: ["claims-equals"]
+      service: noop@internal
+    claims-prefix:
+      rule: "PathPrefix(`/claims-prefix`)"
+      middlewares: ["claims-prefix"]
+      service: noop@internal
+    claims-oneof:
+      rule: "PathPrefix(`/claims-oneof`)"
+      middlewares: ["claims-oneof"]
+      service: noop@internal
+    claims-split:
+      rule: "PathPrefix(`/claims-split`)"
+      middlewares: ["claims-split"]
+      service: noop@internal

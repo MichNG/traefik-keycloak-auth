@@ -1,0 +1,33 @@
+# Loads every example of example/options/ into a real Traefik (and asserts that
+# every example under example/options/invalid/ is rejected with the expected
+# message). No Keycloak, no Redis: creating the middleware does not need them.
+#
+# Prerequisites: make certs (the TLS examples point at the generated test PKI).
+#
+#   docker compose -p plugin-options -f docker-compose.options.yaml up -d --build
+#   docker compose -p plugin-options -f docker-compose.options.yaml run --rm tester
+#   docker compose -p plugin-options -f docker-compose.options.yaml down -v
+services:
+  traefik:
+    image: traefik:v3.5
+    ports:
+      - "9580:80"
+      - "9581:8080"
+    volumes:
+      - "./docker/traefik-options.yaml:/etc/traefik/traefik.yaml:ro"
+      - "./docker/options-runtime:/etc/traefik/options:ro"
+      # the TLS examples read these files (path variant of caBundle/cert/key)
+      - "./docker/tls/out:/tls:ro"
+      - "./docker/tls/out/ca.crt:/etc/ssl/certs/keycloak-ca.pem:ro"
+      - ".:/plugins-local/src/github.com/MichNG/traefik-keycloak-auth:ro"
+
+  tester:
+    image: alpine:3.20
+    depends_on:
+      - traefik
+    volumes:
+      - "./docker/e2e-options.sh:/e2e.sh:ro"
+      - "./example/options:/examples:ro"
+      - "./docker/options-runtime:/options"
+      - "./docker/tls/out:/tls:ro"
+    command: sh -c "apk add --no-cache curl bash jq >/dev/null && bash /e2e.sh"

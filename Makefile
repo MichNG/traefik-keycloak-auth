@@ -1,4 +1,4 @@
-.PHONY: test test-race cover lint yaegi-check vendor certs integration integration-down integration-tls integration-tls-down
+.PHONY: test test-race cover lint yaegi-check vendor certs integration integration-down integration-tls integration-tls-down options options-down loadtest chaos chaos-down loadtest
 
 # Runs gofmt, go vet and the whole test suite. The Go caches are kept inside
 # the repository so that the target also works in restricted environments.
@@ -49,3 +49,26 @@ integration-tls: certs
 
 integration-tls-down:
 	@docker compose -p plugin-tls -f docker-compose.sentinel-tls.yaml down -v --remove-orphans
+
+# Load test of the running stack: brings the stack up and runs tools/loadtest in
+# the three modes (unauth, session, cookie). See docker/loadtest.sh.
+loadtest:
+	@docker/loadtest.sh
+
+# Loads every example of example/options/ (and rejects every example of
+# example/options/invalid/) into a real Traefik: the per-option test.
+options: certs
+	@docker compose -p plugin-options -f docker-compose.options.yaml up -d --build
+	@docker compose -p plugin-options -f docker-compose.options.yaml run --rm tester
+
+options-down:
+	@docker compose -p plugin-options -f docker-compose.options.yaml down -v --remove-orphans
+
+# Chaos testing: injects failures (failover, killed nodes, poisoned keys, a
+# blocked master) while a probe drives traffic, then prints the per-scenario
+# report. See docker/chaos.sh.
+chaos:
+	@docker/chaos.sh
+
+chaos-down:
+	@docker compose -p plugin-chaos -f docker-compose.chaos.yaml down -v --remove-orphans

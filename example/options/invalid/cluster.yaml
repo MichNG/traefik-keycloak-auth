@@ -1,0 +1,26 @@
+# Redis Cluster is not supported
+#
+# This file MUST be rejected. Option covered: session.store.redis.cluster (store.redis.cluster)
+# docker/e2e-options.sh loads it alone into Traefik and asserts the error.
+
+http:
+  middlewares:
+    cluster:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "LQslcjK8ZeRrrhW7jKaFUUous9W5QvCr"
+          secret: "0123456789abcdef0123456789abcdef"
+          session:
+            store:
+              redis:
+                endpoints: ["redis:6379"]
+                cluster: "true"
+  routers:
+    cluster:
+      rule: "PathPrefix(`/cluster`)"
+      middlewares: ["cluster"]
+      service: noop@internal
+

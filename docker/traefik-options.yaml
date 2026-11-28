@@ -1,0 +1,24 @@
+# Static configuration of the "options" check: it only needs Traefik and the
+# plugin, so that every example under example/options/ can be loaded (and every
+# invalid one rejected) without any external dependency.
+entryPoints:
+  web:
+    address: ":80"
+
+providers:
+  file:
+    directory: /etc/traefik/options
+    watch: true
+
+api:
+  dashboard: true
+  insecure: true
+
+log:
+  level: DEBUG
+  format: common
+
+experimental:
+  localPlugins:
+    traefik-keycloak-auth:
+      moduleName: github.com/MichNG/traefik-keycloak-auth

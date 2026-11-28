@@ -1,0 +1,53 @@
+# Redis/Sentinel TLS and the insecure development mode
+#
+# Options covered: session.store.redis.tls.{caBundle,cert,key}, session.store.redis.tls.insecureSkipVerify
+# Variants of caBundle/cert/key: a file path (shown below) or the PEM content
+# itself (for instance `${REDIS_CA_PEM}` expanded by the plugin); the inline
+# variant is exercised by the generated example of docker/e2e-options.sh.
+# Loaded by the "options" end-to-end check (docker/e2e-options.sh) into a real
+# Traefik, so this file must stay a valid dynamic configuration.
+
+http:
+  middlewares:
+    store-tls-inline:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "${CLIENT_SECRET}"
+          secret: "0123456789abcdef0123456789abcdef"
+          session:
+            store:
+              redis:
+                endpoints: ["redis:6379"]
+                tls:
+                  # variant: the PEM content itself, from the environment
+                  # (${REDIS_CA_PEM}, ${REDIS_CLIENT_CERT_PEM}, ...)
+                  caBundle: "/tls/ca.crt"
+                  cert: "/tls/client.crt"
+                  key: "/tls/client.key"
+    store-tls-insecure:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "${CLIENT_SECRET}"
+          secret: "0123456789abcdef0123456789abcdef"
+          session:
+            store:
+              redis:
+                endpoints: ["redis:6379"]
+                tls:
+                  # development only
+                  insecureSkipVerify: true
+  routers:
+    store-tls-inline:
+      rule: "PathPrefix(`/store-tls-inline`)"
+      middlewares: ["store-tls-inline"]
+      service: noop@internal
+    store-tls-insecure:
+      rule: "PathPrefix(`/store-tls-insecure`)"
+      middlewares: ["store-tls-insecure"]
+      service: noop@internal

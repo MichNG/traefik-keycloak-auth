@@ -1,0 +1,24 @@
+# mTLS to the provider with cert but no key
+#
+# This file MUST be rejected. Option covered: clientConfig.tls.{cert,key}
+# docker/e2e-options.sh loads it alone into Traefik and asserts the error.
+
+http:
+  middlewares:
+    client-cert-without-key:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "LQslcjK8ZeRrrhW7jKaFUUous9W5QvCr"
+          secret: "0123456789abcdef0123456789abcdef"
+          clientConfig:
+            tls:
+              cert: "/etc/ssl/client.crt"
+  routers:
+    client-cert-without-key:
+      rule: "PathPrefix(`/client-cert-without-key`)"
+      middlewares: ["client-cert-without-key"]
+      service: noop@internal
+

@@ -1,0 +1,31 @@
+# Redis store: one endpoint, credentials, database, key prefix
+#
+# Options covered: session.store.redis.{endpoints,username,password,database}, store.keyPrefix
+# Loaded by the "options" end-to-end check (docker/e2e-options.sh) into a real
+# Traefik, so this file must stay a valid dynamic configuration.
+
+http:
+  middlewares:
+    redis-single:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "${CLIENT_SECRET}"
+          secret: "0123456789abcdef0123456789abcdef"
+          store:
+            # the sessions move from the cookie to Redis as soon as endpoints are set
+            keyPrefix: "toa:"
+          session:
+            store:
+              redis:
+                endpoints: ["redis:6379"]
+                username: "${REDIS_USERNAME}"
+                password: "${REDIS_PASSWORD}"
+                database: 1
+  routers:
+    redis-single:
+      rule: "PathPrefix(`/redis-single`)"
+      middlewares: ["redis-single"]
+      service: noop@internal

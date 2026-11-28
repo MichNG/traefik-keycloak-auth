@@ -1,0 +1,29 @@
+# Browser binding cookie of the login flow
+#
+# Options covered: stateCookie.{name,path,domain,maxAge,sameSite,httpOnly,secure}
+# Loaded by the "options" end-to-end check (docker/e2e-options.sh) into a real
+# Traefik, so this file must stay a valid dynamic configuration.
+
+http:
+  middlewares:
+    statecookie:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "${CLIENT_SECRET}"
+          secret: "0123456789abcdef0123456789abcdef"
+          stateCookie:
+            name: "toa-state"
+            path: "/"
+            domain: "app.example.com"
+            maxAge: 600
+            sameSite: "strict"
+            httpOnly: true
+            secure: false
+  routers:
+    statecookie:
+      rule: "PathPrefix(`/statecookie`)"
+      middlewares: ["statecookie"]
+      service: noop@internal

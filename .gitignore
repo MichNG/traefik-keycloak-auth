@@ -9,3 +9,7 @@ cover.html
 
 # Generated PKI of the Sentinel+TLS end-to-end test
 docker/tls/out/
+
+# Runtime directories of the options and chaos checks
+docker/options-runtime/*.yaml
+docker/chaos-runtime/

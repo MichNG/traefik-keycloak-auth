@@ -1,6 +1,7 @@
 package internalconfig
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -297,5 +298,39 @@ func TestAdapt_ForwardAccessTokenAndWildcards(t *testing.T) {
 	}
 	if !adapted.Config.AllowRedirectUriWildcards {
 		t.Error("allowRedirectUriWildcards must be mapped")
+	}
+}
+
+// The redirect allow-lists are extensions of this plugin: cross-origin targets
+// are accepted only when they are listed (the callback host is always allowed),
+// and `$ENV_VAR` references are expanded like everywhere else.
+func TestAdapt_ValidRedirectUris(t *testing.T) {
+	t.Setenv("EXTRA_REDIRECT", "https://extra.example.com/done")
+
+	cfg := valid()
+	cfg.ValidPostLoginRedirectUris = []string{"https://other.example.com/app", "${EXTRA_REDIRECT}"}
+	cfg.ValidPostLogoutRedirectUris = []string{"https://www.example.org/signed-out"}
+
+	adapted, err := Adapt(cfg)
+	if err != nil {
+		t.Fatalf("Adapt: %v", err)
+	}
+
+	wantLogin := []string{"https://other.example.com/app", "https://extra.example.com/done"}
+	if !reflect.DeepEqual(adapted.Config.ValidPostLoginRedirectUris, wantLogin) {
+		t.Errorf("ValidPostLoginRedirectUris = %v, want %v", adapted.Config.ValidPostLoginRedirectUris, wantLogin)
+	}
+	if len(adapted.Config.ValidPostLogoutRedirectUris) != 1 || adapted.Config.ValidPostLogoutRedirectUris[0] != "https://www.example.org/signed-out" {
+		t.Errorf("ValidPostLogoutRedirectUris = %v", adapted.Config.ValidPostLogoutRedirectUris)
+	}
+
+	// Unset lists stay empty (no cross-origin redirect is allowed).
+	adapted2, err := Adapt(valid())
+	if err != nil {
+		t.Fatalf("Adapt: %v", err)
+	}
+	if len(adapted2.Config.ValidPostLoginRedirectUris) != 0 || len(adapted2.Config.ValidPostLogoutRedirectUris) != 0 {
+		t.Errorf("unset redirect lists must stay empty, got %v / %v",
+			adapted2.Config.ValidPostLoginRedirectUris, adapted2.Config.ValidPostLogoutRedirectUris)
 	}
 }

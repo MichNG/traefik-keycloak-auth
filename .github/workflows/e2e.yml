@@ -57,3 +57,53 @@ jobs:
       - name: tear down
         if: always()
         run: docker compose -p plugin-tls -f docker-compose.sentinel-tls.yaml down -v --remove-orphans
+
+  options:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: generate the test PKI (the TLS examples read it)
+        run: docker/tls/generate-certs.sh
+
+      - name: start the options stack
+        run: docker compose -p plugin-options -f docker-compose.options.yaml up -d --build
+
+      - name: every example is accepted, every invalid one is rejected
+        run: docker compose -p plugin-options -f docker-compose.options.yaml run --rm tester
+
+      - name: tear down
+        if: always()
+        run: docker compose -p plugin-options -f docker-compose.options.yaml down -v --remove-orphans
+
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: load test (unauth, Redis sessions, cookie sessions)
+        run: docker/loadtest.sh
+
+      - name: tear down
+        if: always()
+        run: docker compose -p plugin -f docker-compose.yaml -f docker-compose.load.yaml down -v --remove-orphans
+
+  chaos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: chaos scenarios (failover, killed nodes, poisoned keys, blocked master)
+        run: docker/chaos.sh
+
+      - name: tear down
+        if: always()
+        run: docker compose -p plugin-chaos -f docker-compose.chaos.yaml down -v --remove-orphans

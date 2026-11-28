@@ -104,120 +104,81 @@ A complete runnable pair of files is in
 
 ### Options
 
+Every option of the reference is listed here with the value this plugin applies.
+Rows marked **extension** do not exist in the reference (they exist because a
+middleware plugin has no Hub control plane, or to expose a behaviour the
+reference hard-codes). `store.redis.*` is accepted as a synonym of
+`session.store.redis.*` (the reference spells `store.keyPrefix` at the top level
+and the Redis connection inside `session.store`) and the flat spelling wins when
+both are present.
+
 | Field | Description | Default |
 | :--- | :--- | :--- |
-| `issuer` | Issuer URL of the realm; the discovery document is fetched from `<issuer>/.well-known/openid-configuration`. | — (required) |
-| `redirectUrl` | Callback path registered in Keycloak. | — (required) |
+| `issuer` | Issuer URL; the discovery document is fetched from `<issuer>/.well-known/openid-configuration`. | — (required) |
+| `redirectUrl` | Callback path registered in the provider. | — (required) |
 | `clientID` | OIDC client id. | — (required) |
-| `clientSecret` | OIDC client secret. `$ENV_VAR` is expanded from the environment. | `""` |
-| `secret` | 32-character secret used to encrypt the `state`, the browser binding and the stored sessions. | — (required) |
-| `scopes` | Scopes requested at the authorization endpoint. | `["openid", "profile", "email"]` |
+| `clientSecret` | OIDC client secret. `$ENV_VAR` is expanded. | `""` |
+| `secret` | **extension**: 32-character secret that encrypts the `state`, the browser binding and the stored sessions (Hub injects its own). | — (required) |
+| `scopes` | Scopes requested at the authorization endpoint. | `["openid"]` |
 | `pkce` | Use PKCE (`S256`) for the authorization code flow. | `false` |
-| `claims` | Authorization expression over the ID/access token claims (`Equals`, `Prefix`, `Contains`, `SplitContains`, `OneOf`, `&&`, `\|\|`, `!`, `id_token.`/`access_token.` prefixes). | `""` (no check) |
-| `forwardHeaders` | Claims copied to upstream request headers (`X-Auth-User: preferred_username`). A missing claim removes the header. | — |
-| `forwardIDTokenHeader` | Header receiving the raw ID token. | `""` |
-| `forwardAccessToken` | Forward the access token as `Authorization: Bearer …` for an **authorized** session (never for an unauthorized one). | `false` |
-| `usernameClaim` / `identity` | Claim used for logging the authenticated user / the caller identity. | `preferred_username` / `sub` |
 | `loginUrl` / `logoutUrl` | Paths handled by the plugin (exact path or sub-path). | `/login` / `/logout` |
 | `postLoginRedirectUrl` / `postLogoutRedirectUrl` | Redirect targets after login/logout. | `"/"` |
-| `validPostLoginRedirectUris` / `validPostLogoutRedirectUris` | Extra allowed redirect targets (same-origin is always allowed). | — |
-| `disableLogin` | Do not expose the login route (e.g. when another component starts the flow). | `false` |
-| `authParams` | Extra query parameters sent to the authorization endpoint. | — |
-| `discoveryParams` | Extra query parameters used for the discovery request. | — |
+| `validPostLoginRedirectUris` / `validPostLogoutRedirectUris` | Extra allowed redirect targets; a same-origin URL is always allowed. | — |
+| `allowRedirectUriWildcards` | **extension**: allow `*` in the redirect lists for this middleware instead of the process-wide `TOA_ENABLE_REDIRECT_URI_WILDCARDS`. | `false` |
+| `disableLogin` | Do not expose the login route (another component starts the flow); unauthenticated requests then get a `401` instead of a redirect. | `false` |
 | `trustedIssuer` / `disableIssuerCheck` | Expected issuer when it differs from the discovery `issuer` / skip the comparison. | `""` / `false` |
-| `clientConfig.*` | Private key JWT (`private_key_jwt`) client authentication, timeout/retries and TLS to the OIDC provider (`tls.ca`, `tls.cert`, `tls.key`, `tls.insecureSkipVerify`, path or PEM). | — |
-| `backchannelLogoutUrl` | Path receiving the Keycloak back-channel logout token. | `""` (disabled) |
+| `discoveryParams` | Extra query parameters for the discovery request. | — |
+| `authParams` | Extra query parameters for the authorization request. | — |
+| `claims` | Authorization expression (`Equals`, `Prefix`, `Contains`, `SplitContains`, `OneOf`, `&&`, `\|\|`, `!`, `id_token.`/`access_token.` prefixes). | `""` (no check) |
+| `forwardHeaders` | Claim copied to an upstream header (`X-Auth-User: preferred_username`); a missing claim removes the header. | — |
+| `forwardIDTokenHeader` | Header receiving the raw ID token. | `""` |
+| `forwardAccessToken` | **extension**: forward the access token as `Authorization: Bearer …` for an authorized session. | `false` |
+| `usernameClaim` | Claim used to log the authenticated user. | `preferred_username` |
+| `identity` | Claim used as the caller identity in the logs (Hub uses it to partition its cache). | `sub` |
+| `headers` | **extension**: upstream headers rendered from a Go template over the claims (`name`, `value`, `values`, `includeWhen`). | — |
+| `logLevel` | **extension**: `TRACE`, `DEBUG`, `INFO`, `WARN` or `ERROR`. | `INFO` |
+| `tokenValidation` | **extension**: token verified on each request: `IdToken`, `AccessToken` or `Introspection`. | `IdToken` |
+| `tokenRenewalThreshold` | **extension**: fraction of the token lifetime after which a proactive refresh is attempted (0.5–1.0). | `0.75` |
+| `useClaimsFromUserInfo` | **extension**: merge the UserInfo claims into the token claims. | `false` |
+| `clientConfig.timeoutSeconds` | Time before giving up a request to the provider. | `5` |
+| `clientConfig.maxRetries` | Retries for failing provider requests. | `3` |
+| `clientConfig.tls.ca` | CA bundle for the provider connection: a file path or the PEM content. | `""` |
+| `clientConfig.tls.cert` / `.key` | Client certificate and key (mTLS) to the provider: path or PEM; both are required together. | `""` |
+| `clientConfig.tls.insecureSkipVerify` | Skip the provider certificate verification (development only). | `false` |
+| `backchannelLogoutUrl` | Path receiving the back-channel logout token. | `""` (disabled) |
 | `backchannelLogoutSessionsRequired` | Require a valid `sid`/`sub` to revoke at least one session. | `false` |
-| `stateCookie.*` | `name`, `path`, `domain`, `secure`, `httpOnly`, `sameSite`, `maxAge` of the browser binding cookie. | `maxAge` `600` |
-| `session.expiry` | Session lifetime in seconds. | `86400` |
-| `session.maxAge` | Absolute lifetime of the end-user authentication (independent of the activity). | `0` (unbounded) |
-| `session.sliding` | Renew the session on every authenticated request. A failed renewal is logged, never fatal. | `true` |
+| `stateCookie.name` / `.path` / `.domain` / `.maxAge` / `.sameSite` / `.httpOnly` / `.secure` | Browser binding cookie of the login flow. | `toa-state` / `/` / `""` / `600` / `lax` / `true` / `false` |
+| `session.name` | Name of the session cookie. | `toa-session` |
+| `session.path` / `.domain` | Scope of the session cookie. | `/` / `""` |
+| `session.expiry` | Session lifetime, in seconds. | `86400` |
+| `session.maxAge` | Absolute lifetime of the end-user authentication, independent of the activity (`0` = unbounded). | `0` |
+| `session.sliding` | Renew the session on every authenticated request; a failed renewal is logged, never fatal. | `true` |
 | `session.refresh` | Refresh the tokens with the refresh token when they expire. | `true` |
-| `session.store.redis.endpoints` | Redis endpoints (or the Sentinel endpoints in Sentinel mode). | — (required) |
-| `session.store.redis.username` / `.password` | Redis ACL credentials. `$ENV_VAR` is expanded from the environment. | `""` |
-| `session.store.redis.database` | Database index (also valid in Sentinel mode). | `0` |
+| `session.sameSite` / `.httpOnly` / `.secure` | Flags of the session cookie. | `lax` / `true` / `false` |
+| `session.store.redis.endpoints` | Redis endpoints, or the Sentinel endpoints in Sentinel mode. | — (cookie storage when unset) |
+| `session.store.redis.username` / `.password` | Credentials of the data plane. `$ENV_VAR` is expanded. | `""` |
+| `session.store.redis.database` | Database index (also in Sentinel mode). | `0` |
 | `session.store.redis.sentinel.masterSet` | Name of the Sentinel master set. | — (required with Sentinel) |
 | `session.store.redis.sentinel.username` / `.password` | Credentials for the Sentinels themselves (may differ from the data-plane ones). | `""` |
-| `session.store.redis.tls.caBundle` | CA bundle used to verify Redis **and** the Sentinels: a file path **or** the PEM content itself. The system bundle is used when empty. | `""` |
-| `session.store.redis.tls.cert` | Client certificate (mTLS): a file path **or** the PEM content. Must be set together with `key`. | `""` |
-| `session.store.redis.tls.key` | Client private key (mTLS): a file path **or** the PEM content. Must be set together with `cert`. | `""` |
-| `session.store.redis.tls.insecureSkipVerify` | Skip the verification of the server certificate (development only). | `false` |
+| `session.store.redis.tls.caBundle` | CA bundle used to verify Redis **and** the Sentinels: a file path or the PEM content; the system bundle is used when empty. | `""` |
+| `session.store.redis.tls.cert` / `.key` | Client certificate and key (mTLS) to Redis and the Sentinels: path or PEM; both are required together. | `""` |
+| `session.store.redis.tls.insecureSkipVerify` | Skip the Redis/Sentinel certificate verification (development only). | `false` |
+| `store.keyPrefix` | Prefix of the Redis session keys. | `traefik-keycloak-auth:` |
+| `csrf.secure` | Send the CSRF cookie only over HTTPS. | `false` |
+| `csrf.headerName` | Header carrying the CSRF token. | `Hub-Csrf-Token` |
+| `session.store.redis.cluster` (also `store.redis.cluster`) | **Rejected**: Redis Cluster is not supported; configuring it fails the middleware creation. | — |
 
-The reference exposes no timeout or connection-pool option, so the data plane
-applies its own defaults: **dial 5 s**, **command 3 s**, an **idle pool as large as
-the connection cap**, and a connection cap of **10 × GOMAXPROCS**. The idle pool is
-deliberately not smaller than the cap: a smaller one closes connections under
-concurrency and re-dials them, which churns through the ephemeral ports and ends in
-an open circuit breaker (measured upstream in
-[`traefik-distributed-rate-limit`](https://github.com/MichNG/traefik-distributed-rate-limit)).
-| `store.keyPrefix` | Prefix of the Redis keys. | `traefik-keycloak-auth:` |
-| `csrf` | Signed double-submit cookie CSRF protection (`headerName`, `cookieName`, `secret`, `secure`, `sameSite`). | disabled |
-| `unauthorizedBehavior` | `Unauthorized` (401) or `Forward` (let the request reach the backend unauthenticated). | `Unauthorized` |
-| `session.store.redis.cluster` | **Rejected**: Redis Cluster is not supported. | — |
+The reference exposes no timeout or connection-pool option for the session store,
+so the data plane applies its own defaults: **dial 5 s**, **command 3 s**, an
+**idle pool as large as the connection cap**, and a connection cap of
+**10 × GOMAXPROCS**. The idle pool is deliberately not smaller than the cap: a
+smaller one closes connections under concurrency and re-dials them, which churns
+through the ephemeral ports and ends in an open circuit breaker (measured upstream
+in [`traefik-distributed-rate-limit`](https://github.com/MichNG/traefik-distributed-rate-limit)).
 
-### Redis connections under `store.redis.*`
-
-The whole Redis section is accepted both nested (`session.store.redis.*` and
-`store.redis.*`) and in the flat form; when both are present, `session.store.*`
-wins. The same TLS semantics apply to the data plane and to the Sentinels.
-
-## TLS to Redis and to the Sentinels
-
-`store.redis.tls` (or `session.store.redis.tls`) secures every connection the
-plugin opens — the Redis data plane **and** the Sentinel connections used to
-discover the master:
-
-* `caBundle` — the CA bundle used to verify the server: either a **file path** or
-  the **PEM content** itself (the same value- or file-based semantics as Traefik
-  OSS `tls.ca`). When it is empty, the system bundle is used;
-* `cert` + `key` — client certificate and key for mutual TLS (mTLS), each a file
-  path or inline PEM; setting only one of them is an error;
-* `insecureSkipVerify` — disables the server certificate verification. For local
-  development only;
-* `$ENV_VAR` references are expanded in all three string fields, so the key
-  material can stay out of the configuration file.
-
-```yaml
-# custom CA + mTLS, for a Redis (or Sentinel) endpoint that checks the client
-session:
-  store:
-    redis:
-      endpoints: ["sentinel-0:26379", "sentinel-1:26379", "sentinel-2:26379"]
-      sentinel:
-        masterSet: mymaster
-      tls:
-        caBundle: "/etc/ssl/certs/redis-ca.pem"   # or the PEM content itself
-        cert: "${REDIS_CLIENT_CERT_PEM}"          # or a file path
-        key: "${REDIS_CLIENT_KEY_PEM}"            # or a file path
-```
-
-```yaml
-# TLS without a custom CA (public/Let's Encrypt certificate)
-    tls:
-      insecureSkipVerify: false
-```
-
-```yaml
-# development against a self-signed certificate
-    tls:
-      insecureSkipVerify: true
-```
-
-The TLS path to Redis and to the Sentinels is exercised end-to-end by a dedicated
-Docker stack (mutual TLS: `tls-auth-clients yes` on every Redis and Sentinel,
-`tls-replication yes` for the replica → master link, and the plugin connecting
-with `caBundle`/`cert`/`key`), see `make integration-tls`.
-
-The connections to the **OIDC provider** are configured separately, with the same
-path-or-PEM semantics, under `clientConfig.tls`
-(`ca`, `cert`, `key`, `insecureSkipVerify`):
-
-```yaml
-clientConfig:
-  tls:
-    ca: "/etc/ssl/certs/keycloak-ca.pem"
-    insecureSkipVerify: false
-```
+Every option, and every variant of it, has a runnable example under
+[`example/options/`](example/options/README.md); the examples are loaded by a real
+Traefik by the end-to-end stack (`make integration`).
 
 ## Redis Sentinel
 
@@ -250,6 +211,11 @@ than the Go compiler. The plugin therefore:
   the Go build, and Yaegi resolves them from `vendor/`);
 * avoids custom `http.RoundTripper` values, closures stored in variables, tagless
   `switch` with parallel assignment and named `jwt.MapClaims` type assertions;
+* is not the only source of surprises with templates: Traefik renders the
+  configuration of its *file* provider as a Go template, so `headers` values with
+  a double-brace expression never reach the plugin there (they must be literal,
+  or the configuration must come from a provider that does not template it, such
+  as Traefik Hub or a Kubernetes CRD);
 * never formats a RESP error reply with `%w`: the reply is a concrete interpreted
   type, so the interpreter's `fmt` renders `%!w(stdlib._fmt_Stringer=...)` instead
   of the server message; `redisError()` passes the text explicitly;
@@ -268,7 +234,19 @@ make integration                  # Keycloak + Redis Sentinel end-to-end (Docker
 make integration-down             # tear the stack down
 make integration-tls              # the same, over TLS with mutual authentication
 make integration-tls-down         # tear the TLS stack down
+make options                      # loads every example of example/options/ in a real Traefik
+make options-down                 # tear the options stack down
+make loadtest                     # load test: 401 path, Redis sessions, cookie sessions
+make chaos                        # chaos test: failover, killed nodes, poisoned keys
+make chaos-down                   # tear the chaos stack down
 ```
+
+Test suites: the unit tests (`make test-race`), the Yaegi check
+(`make yaegi-check`), the end-to-end stacks (plain, TLS), the per-option check
+(`make options`, see [`example/options/`](example/options/README.md)), the load
+test (`tools/loadtest`, three modes) and the chaos test (`docker/chaos.sh`, nine
+scenarios). The per-option audit, the matrix option → code → test → example and
+the load/chaos reports are in the project documentation (docs/21, docs/22).
 
 CI: [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs `gofmt`, `go vet`,
 `go test -race ./...` and the Yaegi check on every push and pull request; the

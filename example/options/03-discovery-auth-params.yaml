@@ -1,0 +1,28 @@
+# Discovery and authorization request parameters
+#
+# Options covered: discoveryParams, authParams
+# Loaded by the "options" end-to-end check (docker/e2e-options.sh) into a real
+# Traefik, so this file must stay a valid dynamic configuration.
+
+http:
+  middlewares:
+    params:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "${CLIENT_SECRET}"
+          secret: "0123456789abcdef0123456789abcdef"
+          # sent on the discovery request (<issuer>/.well-known/openid-configuration)
+          discoveryParams:
+            client_id: "traefik"
+          # sent on the authorization request (Keycloak extensions, e.g. a locale)
+          authParams:
+            ui_locales: "ru"
+            kc_idp_hint: "keycloak-oidc"
+  routers:
+    params:
+      rule: "PathPrefix(`/params`)"
+      middlewares: ["params"]
+      service: noop@internal

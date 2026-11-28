@@ -1,0 +1,113 @@
+# Chaos-testing stack: the plain end-to-end topology with a deterministic set of
+# container names (the driver kills and restarts them) and its own host ports, so
+# it can run next to the plain stack.
+#
+#   docker compose -p plugin-chaos -f docker-compose.chaos.yaml up -d --build
+#   docker/chaos.sh            # drives the scenarios and prints the report
+#   docker compose -p plugin-chaos -f docker-compose.chaos.yaml down -v
+x-sentinel-common: &sentinel-common
+  image: redis:7
+  restart: "no"
+  depends_on:
+    - redis-master
+    - redis-replica
+
+x-sentinel-command: &sentinel-command >-
+  sh -c "printf 'port 26379\nsentinel resolve-hostnames yes\nsentinel announce-hostnames yes\nsentinel monitor mymaster redis-master 6379 2\nsentinel down-after-milliseconds mymaster 5000\nsentinel failover-timeout mymaster 10000\n' > /tmp/sentinel.conf && redis-sentinel /tmp/sentinel.conf"
+
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.2.5
+    container_name: chaos-keycloak
+    restart: "no"
+    environment:
+      KC_HOSTNAME: "http://keycloak:8080"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HTTP_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-postgres:5432/keycloak
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: postgres
+    volumes:
+      - "./docker/keycloak/realm-myrealm.json:/opt/keycloak/data/import/realm-myrealm.json:ro"
+    command: ["start-dev", "--import-realm"]
+    depends_on:
+      - keycloak-postgres
+
+  keycloak-postgres:
+    image: postgres:17-alpine
+    container_name: chaos-keycloak-postgres
+    restart: "no"
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - chaos_keycloak_postgres_data:/var/lib/postgresql/data
+
+  redis-master:
+    image: redis:7
+    container_name: chaos-redis-master
+    restart: "no"
+
+  redis-replica:
+    image: redis:7
+    container_name: chaos-redis-replica
+    restart: "no"
+    command: ["redis-server", "--replicaof", "redis-master", "6379"]
+    depends_on:
+      - redis-master
+
+  sentinel-0:
+    <<: *sentinel-common
+    container_name: chaos-sentinel-0
+    command: *sentinel-command
+
+  sentinel-1:
+    <<: *sentinel-common
+    container_name: chaos-sentinel-1
+    command: *sentinel-command
+
+  sentinel-2:
+    <<: *sentinel-common
+    container_name: chaos-sentinel-2
+    command: *sentinel-command
+
+  traefik:
+    image: traefik:v3.5
+    container_name: chaos-traefik
+    restart: "no"
+    ports:
+      - "9280:80"
+      - "9281:8080"
+    volumes:
+      - "./docker/traefik-static.yaml:/etc/traefik/traefik.yaml:ro"
+      - "./docker/traefik-dynamic.yaml:/etc/traefik/dynamic.yaml:ro"
+      - ".:/plugins-local/src/github.com/MichNG/traefik-keycloak-auth:ro"
+    depends_on:
+      - keycloak
+      - sentinel-0
+      - sentinel-1
+      - sentinel-2
+
+  whoami:
+    image: traefik/whoami:latest
+    container_name: chaos-whoami
+
+  probe:
+    image: alpine:3.20
+    container_name: chaos-probe
+    restart: "no"
+    depends_on:
+      - traefik
+      - keycloak
+      - sentinel-0
+    volumes:
+      - "./docker/chaos-probe.sh:/probe.sh:ro"
+      - "./docker/chaos-runtime:/logs"
+    command: sh -c "apk add --no-cache curl bash >/dev/null && bash /probe.sh"
+
+volumes:
+  chaos_keycloak_postgres_data:

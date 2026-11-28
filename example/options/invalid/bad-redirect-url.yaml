@@ -1,0 +1,20 @@
+# A redirectUrl that is not a URL
+#
+# This file MUST be rejected. Option covered: redirectUrl
+# docker/e2e-options.sh loads it alone into Traefik and asserts the error.
+
+http:
+  middlewares:
+    bad-redirect-url:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "://not-a-url"
+          clientID: "traefik"
+          clientSecret: "LQslcjK8ZeRrrhW7jKaFUUous9W5QvCr"
+          secret: "0123456789abcdef0123456789abcdef"
+  routers:
+    bad-redirect-url:
+      rule: "PathPrefix(`/bad-redirect-url`)"
+      middlewares: ["bad-redirect-url"]
+      service: noop@internal

@@ -1,0 +1,28 @@
+# Redis store: flat `store.redis.*` spelling and an endpoint list
+#
+# Options covered: store.redis.endpoints, store.keyPrefix (flat synonym of session.store.redis.*)
+# Loaded by the "options" end-to-end check (docker/e2e-options.sh) into a real
+# Traefik, so this file must stay a valid dynamic configuration.
+
+http:
+  middlewares:
+    redis-flat:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "${CLIENT_SECRET}"
+          secret: "0123456789abcdef0123456789abcdef"
+          # variant: the whole Redis block spelled flat, as in the reference of
+          # the Distributed RateLimit middleware (`store.redis.*`); when both
+          # spellings are present the nested `session.store.*` wins
+          store:
+            keyPrefix: "toa:"
+            redis:
+              endpoints: ["redis-0:6379", "redis-1:6379", "redis-2:6379"]
+  routers:
+    redis-flat:
+      rule: "PathPrefix(`/redis-flat`)"
+      middlewares: ["redis-flat"]
+      service: noop@internal

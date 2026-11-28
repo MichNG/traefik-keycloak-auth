@@ -1,0 +1,24 @@
+# disableLogin: no login route, 401 instead of a redirect
+#
+# Options covered: disableLogin
+# Loaded by the "options" end-to-end check (docker/e2e-options.sh) into a real
+# Traefik, so this file must stay a valid dynamic configuration.
+
+http:
+  middlewares:
+    no-login-route:
+      plugin:
+        traefik-keycloak-auth:
+          issuer: "https://keycloak.example.com/realms/myrealm"
+          redirectUrl: "/callback"
+          clientID: "traefik"
+          clientSecret: "${CLIENT_SECRET}"
+          secret: "0123456789abcdef0123456789abcdef"
+          # the plugin does not expose /login: an unauthenticated request gets a
+          # 401 instead of a redirect (another component starts the flow)
+          disableLogin: true
+  routers:
+    no-login-route:
+      rule: "PathPrefix(`/no-login`)"
+      middlewares: ["no-login-route"]
+      service: noop@internal

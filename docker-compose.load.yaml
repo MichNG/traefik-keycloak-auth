@@ -1,0 +1,55 @@
+# Load-test overlay for the Docker end-to-end stack.
+#
+# It reuses ALL services of docker-compose.yaml (Keycloak, Postgres, Redis
+# master/replica, the 3 Sentinels, Traefik, whoami) and just adds a `loadtest`
+# service that compiles and runs tools/loadtest inside the compose network.
+#
+# Because it is an overlay, it must be combined with the base file and the same
+# project name, so the load test talks to the very same Traefik/Keycloak
+# instances (no second stack, no port clash):
+#
+#   docker compose -p plugin -f docker-compose.yaml -f docker-compose.load.yaml up -d
+#   docker compose -p plugin -f docker-compose.yaml -f docker-compose.load.yaml \
+#       --profile load run --rm -T loadtest \
+#       go -C tools/loadtest run . -base http://traefik -mode unauth
+#   docker compose -p plugin -f docker-compose.yaml -f docker-compose.load.yaml down -v
+#
+# The `loadtest` service lives in the "load" profile so that a plain `up -d`
+# does not start it; it is meant to be invoked with `run`. docker/loadtest.sh
+# wraps all of this and runs the three modes (unauth, session, cookie).
+#
+# The working copy is mounted at /src (same idea as the tester service in
+# docker-compose.yaml), and the Go caches are kept inside the repository
+# (gitignored .gotmp/.gomodcache) so `go run` does not touch the network: the
+# tool is stdlib-only.
+
+services:
+  loadtest:
+    image: golang:1.23
+    profiles: ["load"]
+    working_dir: /src
+    depends_on:
+      - traefik
+      - keycloak
+      - sentinel-0
+    volumes:
+      - ".:/src"
+    environment:
+      GOCACHE: /src/.gotmp/loadtest-cache
+      GOMODCACHE: /src/.gomodcache
+      GOPATH: /src/.gopath
+      CGO_ENABLED: "0"
+      GOFLAGS: -mod=mod
+    # Default invocation (overridden per mode by docker/loadtest.sh):
+    command:
+      - go
+      - -C
+      - tools/loadtest
+      - run
+      - .
+      - -base
+      - http://traefik
+      - -mode
+      - unauth
+      - -duration
+      - 5s
